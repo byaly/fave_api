@@ -26,12 +26,12 @@ class Controller extends Base
         if (is_array($getArr) && count($getArr) >0 ){
             $result = array('status'=>404);
             foreach ($getArr AS $k=>$v){
-                if (array_key_exists($k,$function) && method_exists($class_name, $k)){
+                if (isset($function[$k]) && method_exists($class_name, $k)){
                     $args = [];
                     if (count($v) > 0){
                         foreach ($function[$k] as $kk=>$vv){
                             $args[$kk] = '';
-                            if (array_key_exists($vv,$v)) $args[$kk] = $v[$vv];
+                            if (isset($v[$vv])) $args[$kk] = $v[$vv];
                         }
                     }
                     $result = call_user_func_array(array($class_name,$k), $args);
@@ -51,7 +51,7 @@ class Controller extends Base
     /**随机一张图片
      * @param null $n
      */
-    public function getImg($id = '',$type = '',$a = '3'){
+    public function getImg($id = '',$type = ''){
         if ($id){
             $id = self::reduction($id,1);
         }else{
