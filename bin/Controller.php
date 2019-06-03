@@ -11,6 +11,7 @@ require_once 'Base.php';
 
 class Controller extends Base
 {
+    public $_imgDir = './public/image/';
     public function __construct()
     {
         parent::__construct();
@@ -18,6 +19,9 @@ class Controller extends Base
 //        define('IS_POST',REQUEST_METHOD =='POST' ? true : false);
     }
 
+    /**
+     * @throws \ReflectionException
+     */
     private function index()
     {
         $getArr = $this->get();
@@ -48,24 +52,24 @@ class Controller extends Base
         }
     }
 
-    /**随机一张图片
+    /** random limit one iamge
      * @param null $n
      */
     public function getImg($id = '',$type = ''){
         if ($id){
-            $id = self::reduction($id,1);
+            $id = self::reduction($id,1); // bing image link
         }else{
             $res = $this->getImgRandomJson();
             $id = $res['result']['savepath'];
             if ($type == 'json'){
-                $id = self::reduction($id,0);
+                $id = $this->reduction($id ,'');
                 $this->jsonReturn(1,'获取成功',array('id'=>$id));
             }
         }
         $this->showImg($id);
     }
 
-    /**获取系统信息
+    /**system info
      * @return array
      */
 //    public function systemInfo(){
@@ -101,31 +105,32 @@ class Controller extends Base
         $data['imagesurl'] = $res[0]['imagesurl'];
         $data['copyright'] = $res[0]['copyright'];
         $data['savepath'] = $res[0]['savepath'];
-        $str = 'https://cn.bing.com';
-        if (!strstr($data['imagesurl'], $str)) $data['imagesurl'] = $str . $data['imagesurl'] . '_1920x1080.jpg';
-//        if (!empty($data['savepath']))
-//            $data['savepath'] = self::reduction($data['savepath']);
+        $data['saveid'] = $res[0]['saveid'];
         return array('status'=>1,'msg'=>'获取成功','result'=>$data);
     }
 
     /**
-     *保存信息
+     * save data info
      * @return array
      */
-    private function saveDataInfo()
+    public function saveDataInfo()
     {
         $img = $this->getImgInfo();
         $res = $this->saveImg($img['imagesurl']);
         if (is_array($res)) {
-            $img = array_merge($img, array('savepath' => $res['save_path']));
-            $this->saveTxt($img);
-            $this->medoo->insert('fave_img', $img);
-            $data_id = $this->medoo->id();
-            if ($data_id > 0) return array('status'=>1,'msg'=>'插入数据成功','result'=>$data_id);
+            $isExit = $this->medoo->get('fave_img','id',['saveid'=>$res['file_id']]);
+            if ($isExit === false){
+                $img = array_merge($img, array('savepath' => $res['save_path'],'saveid'=>$res['file_id']));
+                $this->medoo->insert('fave_img', $img);
+                $data_id = $this->medoo->id();
+                if ($data_id > 0) return array('status'=>1,'msg'=>'Insert data','result'=>$data_id);
+            }else{
+                return array('status'=>-1,'msg'=>'Data exists','result'=>'');
+            }
         }
     }
 
-    /**保存文本
+    /** save data to txt
      * @param $byimg_info
      */
     private function saveTxt($byimg_info)
@@ -135,18 +140,18 @@ class Controller extends Base
         fclose($myfile);
     }
 
-    /**保存图像
+    /** save image
      * @param $url
      * @return array|bool
      */
     private function saveImg($url)
     {
-        if (trim($url) == '') $this->jsonReturn(-1, 'URL地址为空');
+        if (trim($url) == '') $this->jsonReturn(-1, 'The URL address is empty');
         $url_exp = explode('.', $url);
         $url = 'https://cn.bing.com' . $url . '_1920x1080.jpg';
         $filename = $url_exp[1] . '_1920x1080.jpg';
-        $save_dir = 'public/image/';
-        if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) $this->jsonReturn(-2, '创建图像目录失败');
+        $save_dir = $this->_imgDir;
+        if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) $this->jsonReturn(-2, 'Failed to create image directory');
         $save_dir .= $filename;
         if (file_exists($save_dir)) $this->jsonReturn(-3, '图像文件已存在');
         ob_start();
@@ -156,10 +161,13 @@ class Controller extends Base
         $fp2 = @fopen($save_dir, 'a');
         fwrite($fp2, $img);
         fclose($fp2);
-        return array('file_name' => $filename, 'save_path' => $save_dir);
+        return array('file_id'=>$url_exp[1],'file_name' => $filename, 'save_path' => $save_dir);
+    }
+    private function saveView($saveid){
+        $res = $this->medoo->update('fave_img',['view[+]'=>1],['saveid'=>$saveid]);
     }
 
-    /**下载文件
+    /** download
      * @param $url
      * @param $path
      */
@@ -183,10 +191,10 @@ class Controller extends Base
         } else {
             $opts = array('https' => array('method' => 'GET', 'timeout' => 3));
             $context = stream_context_create($opts);
-            $res = file_get_contents($url, false, $context); //读取必应api，获得相应数据
+            $res = file_get_contents($url, false, $context);
         }
         $res = json_decode($res, true);
-        $byimg_enddate = $res['images'][0]['enddate'];//图片结束日期
+        $byimg_enddate = $res['images'][0]['enddate'];
         $byimg_urlbase = $res['images'][0]['urlbase'];
         $byimg_copyright = $res['images'][0]['copyright'];
         return array('enddate' => $byimg_enddate, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright);
@@ -213,14 +221,19 @@ class Controller extends Base
         }
     }
 
-    private function reduction($id ,$action = 0){
-        if ($action == 0){
-            return str_replace('_1920x1080.jpg','',str_replace('public/image/','',$id));
-        }else{
-            //供图片链接
-            $id = './public/image/'.$id.'_1920x1080.jpg';
-            return $id;
+    private function reduction($str ,$action = 0){
+        switch ($action){
+            case 1:
+                $str = './public/image/'.$str.'_1920x1080.jpg';
+                break;
+            case 2:
+                $str = $str = 'https://cn.bing.com' . $str . '_1920x1080.jpg';
+                break;
+            default :
+                $str =  str_replace('_1920x1080.jpg','',str_replace('./public/image/','',$str));
+                break;
         }
+        return $str;
     }
 }
 
