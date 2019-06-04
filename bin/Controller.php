@@ -16,10 +16,9 @@ class Controller extends Base
     {
         parent::__construct();
         $this->index();
-//        define('IS_POST',REQUEST_METHOD =='POST' ? true : false);
     }
 
-    /**
+    /** Main
      * @throws \ReflectionException
      */
     private function index()
@@ -52,24 +51,23 @@ class Controller extends Base
         }
     }
 
-    /** random limit one iamge
+    /** Get picture data
      * @param null $n
      */
     public function getImg($id = '',$type = ''){
-        if ($id){
-            $id = self::reduction($id,1); // bing image link
-        }else{
+        if (empty($id)){
             $res = $this->getImgRandomJson();
             $id = $res['result']['savepath'];
-            if ($type == 'json'){
-                $id = $this->reduction($id ,'');
-                $this->jsonReturn(1,'获取成功',array('id'=>$id));
-            }
+            $id = $this->splicing($id ,'');
+        }
+        $this->saveView($id);
+        if ($type == 'json'){
+            $this->jsonReturn(1,'获取成功',array('id'=>$id));
         }
         $this->showImg($id);
     }
 
-    /**system info
+    /** system info
      * @return array
      */
 //    public function systemInfo(){
@@ -99,7 +97,6 @@ class Controller extends Base
      */
     private function getImgRandomJson()
     {
-//        self::referer();
         $random_1 = 'SELECT * FROM `fave_img` AS t1 JOIN (SELECT ROUND(RAND() * ((SELECT MAX(id) FROM `fave_img`)-(SELECT MIN(id) FROM `fave_img`))+(SELECT MIN(id) FROM `fave_img`)) AS id) AS t2 WHERE t1.id >= t2.id ORDER BY t1.id LIMIT 1;';
         $res = $this->medoo->query($random_1)->fetchAll();
         $data['imagesurl'] = $res[0]['imagesurl'];
@@ -109,8 +106,7 @@ class Controller extends Base
         return array('status'=>1,'msg'=>'获取成功','result'=>$data);
     }
 
-    /**
-     * save data info
+    /** save data info
      * @return array
      */
     public function saveDataInfo()
@@ -130,17 +126,7 @@ class Controller extends Base
         }
     }
 
-    /** save data to txt
-     * @param $byimg_info
-     */
-    private function saveTxt($byimg_info)
-    {
-        $myfile = fopen('public/data/data.txt', 'a+');
-        fwrite($myfile, json_encode($byimg_info) . PHP_EOL);
-        fclose($myfile);
-    }
-
-    /** save image
+    /** Save pictures
      * @param $url
      * @return array|bool
      */
@@ -153,7 +139,7 @@ class Controller extends Base
         $save_dir = $this->_imgDir;
         if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) $this->jsonReturn(-2, 'Failed to create image directory');
         $save_dir .= $filename;
-        if (file_exists($save_dir)) $this->jsonReturn(-3, '图像文件已存在');
+        if (file_exists($save_dir)) $this->jsonReturn(-3, 'Image file exists');
         ob_start();
         readfile($url);
         $img = ob_get_contents();
@@ -163,11 +149,19 @@ class Controller extends Base
         fclose($fp2);
         return array('file_id'=>$url_exp[1],'file_name' => $filename, 'save_path' => $save_dir);
     }
+
+    /** data statistics
+     * @param $saveid
+     */
     private function saveView($saveid){
-        $res = $this->medoo->update('fave_img',['view[+]'=>1],['saveid'=>$saveid]);
+        $this->medoo->update('fave_img',['view[+]'=>1],['saveid'=>$saveid]);
+        $backtrace = debug_backtrace();
+        $ip = $this->getClientIp();
+        $isExit = $this->medoo->get('fave_ip','id',['ip'=>$ip]);
+        $isExit ? $this->medoo->update('fave_ip',['count[+]'=>1],['id'=>$isExit]) : $this->medoo->insert('fave_ip', array('ip'=>$ip,'service'=>$backtrace[1]['function']));
     }
 
-    /** download
+    /** Download File
      * @param $url
      * @param $path
      */
@@ -179,7 +173,7 @@ class Controller extends Base
         file_put_contents($path . $fileName, $file);
     }
 
-    /**获取必应数据
+    /** pick up information
      * @param string $lang
      * @return array
      */
@@ -199,7 +193,15 @@ class Controller extends Base
         $byimg_copyright = $res['images'][0]['copyright'];
         return array('enddate' => $byimg_enddate, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright);
     }
+
+    /** display picture
+     * @param $img
+     */
     private function showImg($img){
+        $img = $this->splicing($img,1);
+        var_dump($img);
+
+        die;
         $info = getimagesize($img);
         $imgExt = image_type_to_extension($info[2], false);
         $fun = "imagecreatefrom{$imgExt}";
@@ -212,6 +214,7 @@ class Controller extends Base
         $getImgInfo($imgInfo, null, $quality);
         imagedestroy($imgInfo);
     }
+
     private function referer(){
         $fromurl = $_SERVER['HTTP_REFERER'].substr($_SERVER['PHP_SELF'],1);
         if( SITE_URL.$_SERVER['PHP_SELF'] != $fromurl )
@@ -221,7 +224,12 @@ class Controller extends Base
         }
     }
 
-    private function reduction($str ,$action = 0){
+    /** Character mosaic
+     * @param $str
+     * @param int $action
+     * @return mixed|string
+     */
+    private function splicing($str , $action = 0){
         switch ($action){
             case 1:
                 $str = './public/image/'.$str.'_1920x1080.jpg';
