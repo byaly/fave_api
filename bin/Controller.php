@@ -11,7 +11,6 @@ require_once 'Base.php';
 
 class Controller extends Base
 {
-    public $_imgDir = './public/image/';
     public function __construct()
     {
         parent::__construct();
@@ -60,10 +59,9 @@ class Controller extends Base
             $id = $res['result']['savepath'];
             $id = $this->splicing($id ,'');
         }
-        $this->saveView($id);
-        if ($type == 'json'){
-            $this->jsonReturn(1,'获取成功',array('id'=>$id));
-        }
+        $ref = $this->referer();
+        $this->saveView($id,$ref);
+        $type == 'json' ? $this->jsonReturn(1,'获取成功',array('id'=>$id,'referer'=>$ref)): false;
         $this->showImg($id);
     }
 
@@ -153,12 +151,14 @@ class Controller extends Base
     /** data statistics
      * @param $saveid
      */
-    private function saveView($saveid){
+    private function saveView($saveid,$ref = ''){
         $this->medoo->update('fave_img',['view[+]'=>1],['saveid'=>$saveid]);
         $backtrace = debug_backtrace();
         $ip = $this->getClientIp();
-        $isExit = $this->medoo->get('fave_ip','id',['ip'=>$ip]);
-        $isExit ? $this->medoo->update('fave_ip',['count[+]'=>1],['id'=>$isExit]) : $this->medoo->insert('fave_ip', array('ip'=>$ip,'service'=>$backtrace[1]['function']));
+        $ref ? $w = ['referer'=>$ref] : $w = ['ip'=>$ip];
+        $isExit = $this->medoo->get('fave_referer','id',$w);
+        $isExit ? $data = ['id'=>$isExit] : $data = array('ip'=>$ip,'service'=>$backtrace[1]['function'],'referer'=>$ref,'time'=>time());
+        $isExit ? $this->medoo->update('fave_referer',['count[+]'=>1,'time'=>time()],$data) : $this->medoo->insert('fave_referer',$data );
     }
 
     /** Download File
@@ -199,9 +199,6 @@ class Controller extends Base
      */
     private function showImg($img){
         $img = $this->splicing($img,1);
-        var_dump($img);
-
-        die;
         $info = getimagesize($img);
         $imgExt = image_type_to_extension($info[2], false);
         $fun = "imagecreatefrom{$imgExt}";
@@ -216,11 +213,11 @@ class Controller extends Base
     }
 
     private function referer(){
-        $fromurl = $_SERVER['HTTP_REFERER'].substr($_SERVER['PHP_SELF'],1);
-        if( SITE_URL.$_SERVER['PHP_SELF'] != $fromurl )
-        {
+        if (($_SERVER['HTTP_ORIGIN'].'/')  == $_SERVER['HTTP_REFERER']){
+            $url = parse_url($_SERVER['HTTP_REFERER']);
+            return $url['host'];
+        }else{
             header('Location:'.SITE_URL);
-            exit;
         }
     }
 
