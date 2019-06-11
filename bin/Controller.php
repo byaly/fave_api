@@ -11,6 +11,7 @@ require_once 'Base.php';
 
 class Controller extends Base
 {
+    public $_imgDir = './public/image/';
     public function __construct()
     {
         parent::__construct();
