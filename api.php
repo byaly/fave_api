@@ -8,6 +8,7 @@
 
 use Fave\Controller;
 if(version_compare(PHP_VERSION,'5.6.0','<'))  die('require PHP > 5.6.0 !');
+ini_set('display_errors', false);
 header('Access-Control-Allow-Origin:*');
 define('SITE_URL', 'http://' . $_SERVER['HTTP_HOST']);
 define ( 'ROOT', dirname ( __FILE__ ) . '/' );

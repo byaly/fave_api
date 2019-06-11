@@ -37,7 +37,13 @@ class Controller extends Base
                             if (isset($v[$vv])) $args[$kk] = $v[$vv];
                         }
                     }
-                    $result = call_user_func_array(array($class_name,$k), $args);
+                    try {
+                        $result = call_user_func_array(array($class_name,$k), $args);
+                    } catch (\Exception $exception) {
+                        echo "{$exception->getLine()}-".$exception->getMessage();die;
+                    } catch (\Error $error) {
+                        echo "{$error->getLine()}-".$error->getMessage();die;
+                    }
                 }
             }
             if (!empty($result) || is_array($result)) $this->jsonReturn($result);
@@ -214,11 +220,11 @@ class Controller extends Base
     }
 
     private function referer(){
-        if (($_SERVER['HTTP_ORIGIN'].'/')  == $_SERVER['HTTP_REFERER']){
+        if (isset($_SERVER['HTTP_ORIGIN']) && isset($_SERVER['HTTP_REFERER'])){
             $url = parse_url($_SERVER['HTTP_REFERER']);
             return $url['host'];
         }else{
-            header('Location:'.SITE_URL);
+            return $_SERVER['HTTP_HOST'];
         }
     }
 
