@@ -7,6 +7,8 @@
  */
 
 namespace Fave;
+use http\Url;
+
 require_once 'Base.php';
 
 class Controller extends Base
@@ -72,30 +74,54 @@ class Controller extends Base
         $this->showImg($id);
     }
 
-    /** system info
-     * @return array
-     */
-//    public function systemInfo(){
-//        $sys_info['os']             = PHP_OS;
-//        $sys_info['zlib']           = function_exists('gzclose') ? 'YES' : 'NO';//zlib
-//        $sys_info['safe_mode']      = (boolean) ini_get('safe_mode') ? 'YES' : 'NO';//safe_mode = Off
-//        $sys_info['timezone']       = function_exists("date_default_timezone_get") ? date_default_timezone_get() : "no_timezone";
-//        $sys_info['curl']			= function_exists('curl_init') ? 'YES' : 'NO';
-//        $sys_info['web_server']     = $_SERVER['SERVER_SOFTWARE'];
-//        $sys_info['ip'] 			= GetHostByName($_SERVER['SERVER_NAME']);
-//        $sys_info['fileupload']     = @ini_get('file_uploads') ? ini_get('upload_max_filesize') :'unknown';
-//        $sys_info['max_ex_time'] 	= @ini_get("max_execution_time").'s'; //脚本最大执行时间
-//        $sys_info['set_time_limit'] = function_exists("set_time_limit") ? true : false;
-//        $sys_info['domain'] 		= $_SERVER['HTTP_HOST'];
-//        $sys_info['memory_limit']   = ini_get('memory_limit');
-//        $sys_info['system_version'] = VERSION;
-//        $mysqlinfo                  = $this->medoo->query("SELECT VERSION() as version")->fetchAll();
-//        $sys_info['mysql_version']  = $mysqlinfo[0]['version'];
-//        $sys_info['phpv']           = phpversion();
-//        return array('status'=>1,'msg'=>'获取成功','result'=>$sys_info);
-//    }
+    public function ppx($url){
+       if (empty($url)) return;
+        $json_string =$this->httpGet($url,true);//curl 自定义函数访问api
+        if (is_array($json_string) && isset($json_string['location'])){
+            $url = parse_url($json_string['location']);
+            $ppxid = str_ireplace('/item/','',$url['path']);
+            $url = 'https://h5.pipix.com/bds/webapi/item/detail/?item_id='.$ppxid;
+            $result = $this->httpGet($url);
+            $res = json_decode($result, true);
+            $arr['video_title'] = $res['data']['item']['video']['text'];
+            $arr['video_image'] = $res['data']['item']['video']['cover_image']['url_list'][0]['url'];
+            $arr['video_url'] = $res['data']['item']['video']['video_fallback']['url_list'][0]['url'].'#'.$_SERVER['HTTP_HOST'];
+            $this->jsonReturn(1,'获取成功',$arr);
+        }
+    }
 
-
+    public function sentence(){
+        $start = strtotime('2018-01-01');
+        $date=floor((time() - $start)/86400);
+        $date++;
+        $no = array();
+        for($i = 0 ; $i < $date ; $i++){
+            $nowtime = date('Y-m-d',$start + ($i * 86400));
+//            $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
+            $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
+            $json_string =$this->httpGet($url);//curl 自定义函数访问api
+            var_dump($json_string);
+//            if ($isExit === false){
+//                $no[] = $nowtime;
+//                $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
+//                $json_string =$this->httpGet($url);//curl 自定义函数访问api
+//                if ($json_string === false) $no[] = $nowtime;
+//                $data = json_decode($json_string,true);//解析json 转为php
+//                $arr['content'] = $data['content'];
+//                $arr['note'] = $data['note'];
+//                $arr['title'] = $data['title'];
+//                if (isset($data['translation'])){
+//                    $text2= str_replace('小编的话：', '', $data['translation']);
+//                    $text2= str_replace('词霸小编：', '', $text2);
+//                    $arr['translation'] = $text2;
+//                }
+//                $this->medoo->insert('fave_sentence',$arr );
+//            }
+//            $isExit = $this->medoo->get('fave_sentence','id',['note'=>$arr['note']]);
+//            if ($isExit === false) $this->medoo->insert('fave_sentence',$arr );
+        }
+        var_dump($no);
+    }
 
     /**获取随机的一条记录
      * @return array
@@ -118,17 +144,26 @@ class Controller extends Base
     {
         $img = $this->getImgInfo();
         $res = $this->saveImg($img['imagesurl']);
-        if (is_array($res)) {
+        if (is_array($res) && $res['status'] > 0) {
             $isExit = $this->medoo->get('fave_img','id',['saveid'=>$res['file_id']]);
             if ($isExit === false){
                 $img = array_merge($img, array('savepath' => $res['save_path'],'saveid'=>$res['file_id']));
                 $this->medoo->insert('fave_img', $img);
-                $data_id = $this->medoo->id();
-                if ($data_id > 0) return array('status'=>1,'msg'=>'Insert data','result'=>$data_id);
+                if ($this->medoo->id() > 0) $arr[] = array('status'=>1,'msg'=>'Img','result'=>$this->medoo->id());
             }else{
-                return array('status'=>-1,'msg'=>'Data exists','result'=>'');
+                $arr[] = array('status'=>-4,'msg'=>'Img Data exists');
             }
+        }else{
+            $arr[] = $res;
         }
+        $iciba = $this->getIcibaInfo();
+        if ($iciba){
+            $this->medoo->insert('fave_sentence',$iciba );
+            if ($this->medoo->id() > 0)  $arr[] = array('status'=>1,'msg'=>'Iciba','result'=>$this->medoo->id());
+        }else{
+            $arr[] = array('status'=>-5,'msg'=>'Iciba Data exists');
+        }
+        return $arr;
     }
 
     /** Save pictures
@@ -142,9 +177,9 @@ class Controller extends Base
         $url = 'https://cn.bing.com' . $url . '_1920x1080.jpg';
         $filename = $url_exp[1] . '_1920x1080.jpg';
         $save_dir = $this->_imgDir;
-        if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) $this->jsonReturn(-2, 'Failed to create image directory');
+        if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) return array('status'=>-2,'msg'=>'Failed to create image directory');
         $save_dir .= $filename;
-        if (file_exists($save_dir)) $this->jsonReturn(-3, 'Image file exists');
+        if (file_exists($save_dir)) return array('status'=>-3,'msg'=>'Image file exists');
         ob_start();
         readfile($url);
         $img = ob_get_contents();
@@ -201,6 +236,27 @@ class Controller extends Base
         return array('enddate' => $byimg_enddate, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright);
     }
 
+    private function getIcibaInfo(){
+        $nowtime = date('Y-m-d');
+        $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
+        if ($isExit === false){
+            $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
+            $json_string =$this->httpGet($url);//curl 自定义函数访问api
+            $data = json_decode($json_string,true);//解析json 转为php
+            $arr['content'] = $data['content'];
+            $arr['note'] = $data['note'];
+            $arr['title'] = $data['title'];
+            if (isset($data['translation'])){
+                $text2= str_replace('小编的话：', '', $data['translation']);
+                $text2= str_replace('词霸小编：', '', $text2);
+                $arr['translation'] = $text2;
+            }
+            return $arr;
+        }else{
+            return false;
+        }
+    }
+
     /** display picture
      * @param $img
      */
@@ -247,5 +303,105 @@ class Controller extends Base
         }
         return $str;
     }
+
+
+
+    public function httpGet($url,$location = false,$nobody = false) {
+        ini_set('date.timezone', 'Asia/Shanghai');
+        header('Content-type:text/html;charset=utf-8');
+        $curl = curl_init();
+        $httpheader[] = 'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3';
+        $httpheader[] = 'Accept-Language:zh-CN,zh;q=0.9';
+        $httpheader[] = 'Connection:close';
+        $ip = mt_rand(11, 191) . '.' . mt_rand(0, 240) . '.' . mt_rand(1, 240) . '.' . mt_rand(1, 240);
+        $httpheader[] = array(
+            'CLIENT-IP:' . $ip,
+            'X-FORWARDED-FOR:' . $ip,
+        );
+        if ($nobody) curl_setopt($curl, CURLOPT_NOBODY, true);
+        // 初始化CURL
+        curl_setopt($curl, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36' );
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $httpheader);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 3);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($curl, CURLOPT_URL, $url);
+//        curl_setopt($curl,CURLOPT_HEADER,true);
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $location);
+        $res = curl_exec($curl);
+        $locationUrl = curl_getinfo($curl,CURLINFO_EFFECTIVE_URL);
+        curl_close($curl);
+        if ($location) return array('location'=>$locationUrl);
+        return $res;
+    }
+
+//    private function ppx($url){
+//        $curl = curl_init();
+//        curl_setopt_array($curl, array(
+//            CURLOPT_URL => $url,
+//            CURLOPT_RETURNTRANSFER => true,
+//            CURLOPT_ENCODING => "",
+//            CURLOPT_MAXREDIRS => 10,
+//            CURLOPT_TIMEOUT => 30,
+//            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+//            CURLOPT_CUSTOMREQUEST => "GET",
+//            CURLOPT_SSL_VERIFYPEER=>false,
+//            CURLOPT_SSL_VERIFYHOST=>false,
+//            CURLOPT_HTTPHEADER => array(
+//                "Accept: */*",
+//                "Cache-Control: no-cache",
+//                "Connection: keep-alive",
+//                "Host: h5.pipix.com",
+//                "Postman-Token: 3edcc3b1-c563-4666-9821-9363b20c2cbc,e2fe0f90-9a4e-47ab-9b36-5a75304dde43",
+//                "User-Agent: PostmanRuntime/7.15.0",
+//                "accept-encoding: gzip, deflate",
+//                "cache-control: no-cache"
+//            ),
+//        ));
+//
+//        $response = curl_exec($curl);
+//        $err = curl_error($curl);
+//
+//        curl_close($curl);
+//
+//        if ($err) {
+//            echo "cURL Error #:" . $err;
+//        } else {
+//            echo $response;
+//        }
+//    }
+
+    public function sen(){
+        $start = strtotime('2019-04-15');
+        $date=floor((time() - $start)/86400);
+        $date++;
+        $no = array();
+        for($i = 0 ; $i < $date ; $i++){
+            $nowtime = date('Y-m-d',$start + ($i * 86400));
+            $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
+//            $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
+//            $json_string =$this->httpGet($url);//curl 自定义函数访问api
+            if ($isExit === false){
+                $no[] = $nowtime;
+                $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
+                $json_string =$this->httpGet($url);//curl 自定义函数访问api
+                if ($json_string === false) $no[] = $nowtime;
+                $data = json_decode($json_string,true);//解析json 转为php
+                $arr['content'] = $data['content'];
+                $arr['note'] = $data['note'];
+                $arr['title'] = $data['title'];
+                if (isset($data['translation'])){
+                    $text2= str_replace('小编的话：', '', $data['translation']);
+                    $text2= str_replace('词霸小编：', '', $text2);
+                    $arr['translation'] = $text2;
+                }
+                $this->medoo->insert('fave_sentence',$arr);
+            }
+//            $isExit = $this->medoo->get('fave_sentence','id',['note'=>$arr['note']]);
+//            if ($isExit === false) $this->medoo->insert('fave_sentence',$arr );
+        }
+    }
+
 }
 
