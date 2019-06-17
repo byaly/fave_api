@@ -90,40 +90,7 @@ class Controller extends Base
         }
     }
 
-    public function sentence(){
-        $start = strtotime('2018-01-01');
-        $date=floor((time() - $start)/86400);
-        $date++;
-        $no = array();
-        for($i = 0 ; $i < $date ; $i++){
-            $nowtime = date('Y-m-d',$start + ($i * 86400));
-//            $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
-            $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
-            $json_string =$this->httpGet($url);//curl 自定义函数访问api
-            var_dump($json_string);
-//            if ($isExit === false){
-//                $no[] = $nowtime;
-//                $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
-//                $json_string =$this->httpGet($url);//curl 自定义函数访问api
-//                if ($json_string === false) $no[] = $nowtime;
-//                $data = json_decode($json_string,true);//解析json 转为php
-//                $arr['content'] = $data['content'];
-//                $arr['note'] = $data['note'];
-//                $arr['title'] = $data['title'];
-//                if (isset($data['translation'])){
-//                    $text2= str_replace('小编的话：', '', $data['translation']);
-//                    $text2= str_replace('词霸小编：', '', $text2);
-//                    $arr['translation'] = $text2;
-//                }
-//                $this->medoo->insert('fave_sentence',$arr );
-//            }
-//            $isExit = $this->medoo->get('fave_sentence','id',['note'=>$arr['note']]);
-//            if ($isExit === false) $this->medoo->insert('fave_sentence',$arr );
-        }
-        var_dump($no);
-    }
-
-    /**获取随机的一条记录
+    /** Random Recording
      * @return array
      */
     private function getImgRandomJson()
@@ -236,6 +203,9 @@ class Controller extends Base
         return array('enddate' => $byimg_enddate, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright);
     }
 
+    /** pick up information
+     * @return bool
+     */
     private function getIcibaInfo(){
         $nowtime = date('Y-m-d');
         $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
@@ -263,9 +233,11 @@ class Controller extends Base
     private function showImg($img){
         $img = $this->splicing($img,1);
         $info = getimagesize($img);
-        $imgExt = image_type_to_extension($info[2], false);
+        $imgExt = image_type_to_extension($info[2], false );
         $fun = "imagecreatefrom{$imgExt}";
         $imgInfo = $fun($img);
+//        $fi = new \finfo(FILEINFO_MIME);
+//        $mime = $fi->file($img);
         $mime = mime_content_type($img);
         header('Content-Type:'.$mime);
         $quality = 100;
@@ -275,6 +247,9 @@ class Controller extends Base
         imagedestroy($imgInfo);
     }
 
+    /** Network Request Source
+     * @return mixed
+     */
     private function referer(){
         if (isset($_SERVER['HTTP_ORIGIN']) && isset($_SERVER['HTTP_REFERER'])){
             $url = parse_url($_SERVER['HTTP_REFERER']);
@@ -304,9 +279,13 @@ class Controller extends Base
         return $str;
     }
 
-
-
-    public function httpGet($url,$location = false,$nobody = false) {
+    /** Network Request
+     * @param $url
+     * @param bool $location
+     * @param bool $nobody
+     * @return array|bool|string
+     */
+    public function httpGet($url, $location = false, $nobody = false) {
         ini_set('date.timezone', 'Asia/Shanghai');
         header('Content-type:text/html;charset=utf-8');
         $curl = curl_init();
@@ -319,7 +298,6 @@ class Controller extends Base
             'X-FORWARDED-FOR:' . $ip,
         );
         if ($nobody) curl_setopt($curl, CURLOPT_NOBODY, true);
-        // 初始化CURL
         curl_setopt($curl, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36' );
         curl_setopt($curl, CURLOPT_HTTPHEADER, $httpheader);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
@@ -335,73 +313,5 @@ class Controller extends Base
         if ($location) return array('location'=>$locationUrl);
         return $res;
     }
-
-//    private function ppx($url){
-//        $curl = curl_init();
-//        curl_setopt_array($curl, array(
-//            CURLOPT_URL => $url,
-//            CURLOPT_RETURNTRANSFER => true,
-//            CURLOPT_ENCODING => "",
-//            CURLOPT_MAXREDIRS => 10,
-//            CURLOPT_TIMEOUT => 30,
-//            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-//            CURLOPT_CUSTOMREQUEST => "GET",
-//            CURLOPT_SSL_VERIFYPEER=>false,
-//            CURLOPT_SSL_VERIFYHOST=>false,
-//            CURLOPT_HTTPHEADER => array(
-//                "Accept: */*",
-//                "Cache-Control: no-cache",
-//                "Connection: keep-alive",
-//                "Host: h5.pipix.com",
-//                "Postman-Token: 3edcc3b1-c563-4666-9821-9363b20c2cbc,e2fe0f90-9a4e-47ab-9b36-5a75304dde43",
-//                "User-Agent: PostmanRuntime/7.15.0",
-//                "accept-encoding: gzip, deflate",
-//                "cache-control: no-cache"
-//            ),
-//        ));
-//
-//        $response = curl_exec($curl);
-//        $err = curl_error($curl);
-//
-//        curl_close($curl);
-//
-//        if ($err) {
-//            echo "cURL Error #:" . $err;
-//        } else {
-//            echo $response;
-//        }
-//    }
-
-    public function sen(){
-        $start = strtotime('2019-04-15');
-        $date=floor((time() - $start)/86400);
-        $date++;
-        $no = array();
-        for($i = 0 ; $i < $date ; $i++){
-            $nowtime = date('Y-m-d',$start + ($i * 86400));
-            $isExit = $this->medoo->get('fave_sentence','id',['title'=>$nowtime]);
-//            $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
-//            $json_string =$this->httpGet($url);//curl 自定义函数访问api
-            if ($isExit === false){
-                $no[] = $nowtime;
-                $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title='.$nowtime.'&_='.time();
-                $json_string =$this->httpGet($url);//curl 自定义函数访问api
-                if ($json_string === false) $no[] = $nowtime;
-                $data = json_decode($json_string,true);//解析json 转为php
-                $arr['content'] = $data['content'];
-                $arr['note'] = $data['note'];
-                $arr['title'] = $data['title'];
-                if (isset($data['translation'])){
-                    $text2= str_replace('小编的话：', '', $data['translation']);
-                    $text2= str_replace('词霸小编：', '', $text2);
-                    $arr['translation'] = $text2;
-                }
-                $this->medoo->insert('fave_sentence',$arr);
-            }
-//            $isExit = $this->medoo->get('fave_sentence','id',['note'=>$arr['note']]);
-//            if ($isExit === false) $this->medoo->insert('fave_sentence',$arr );
-        }
-    }
-
 }
 
