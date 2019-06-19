@@ -13,19 +13,12 @@ use Medoo\Medoo;
 class Base
 {
     public $medoo;
-
+    public $config;
     public function __construct()
     {
         require_once 'lib/Medoo.php';
-        $link = array(
-            'database_type' => 'mysql',
-            'database_name' => 'fave',
-            'server' => 'localhost',
-            'username' => 'root',
-            'password' => 'root',
-            'charset' => 'utf8'
-        );
-        $this->medoo = new medoo($link);
+        $this->config = require_once ROOT.'config.php';
+        $this->medoo = new medoo($this->config['database']);
         $this->check();
     }
 
@@ -148,7 +141,7 @@ class Base
      * @return array
      * @throws \ReflectionException
      */
-    public function getClassMethod($class_name = '', $modifier = 'all')
+    protected function getClassMethod($class_name = '', $modifier = 'all')
     {
         $array1 = get_class_methods($class_name);
         if ($parent_class = get_parent_class($class_name)) {
@@ -197,6 +190,27 @@ class Base
         $value = $redis->get("welcome");
         echo $value;
         $redis->quit();
+    }
+
+    protected function getServerFunction()
+    {
+        $ref = $this->referer();
+        $ip = $this->getClientIp();
+        $backtrace = debug_backtrace();
+        $Statistics = array('ip' => $ip, 'service' => $backtrace[2]['function'], 'referer' => $ref, 'time' => time());
+        return $Statistics;
+    }
+    /** Network Request Source
+     * @return mixed
+     */
+    protected function referer()
+    {
+        if (isset($_SERVER['HTTP_ORIGIN']) && isset($_SERVER['HTTP_REFERER'])) {
+            $url = parse_url($_SERVER['HTTP_REFERER']);
+            return $url['host'];
+        } else {
+            return $_SERVER['HTTP_HOST'];
+        }
     }
 
 }
