@@ -9,6 +9,7 @@
 namespace Fave;
 
 use http\Url;
+use Medoo\Medoo;
 
 require_once 'Base.php';
 
@@ -18,7 +19,7 @@ class Controller extends Base
 
     public function __construct()
     {
-        parent::__construct();
+        parent::__construct(get_class());
         $this->index();
     }
 
@@ -30,7 +31,11 @@ class Controller extends Base
         $getArr = $this->get();
         $class_name = get_class();
         $function = $this->getClassMethod($class_name, 'public');
-        foreach ($this->config['noPublic'] as $bboom => $oobbm) if (array_key_exists($oobbm, $function)) unset($function[$oobbm]);
+        foreach ($this->config['noPublic'] as $bboom => $oobbm){
+            if (array_key_exists($bboom, $function)){
+                if (empty($oobbm))unset($function[$oobbm]);
+            }
+        }
         if (is_array($getArr) && count($getArr) > 0) {
             $result = array('status' => 404);
             foreach ($getArr AS $k => $v) {
@@ -79,6 +84,8 @@ class Controller extends Base
             $a = $id = $this->splicing($id, 1);
         }
         $this->saveView(true, $a);
+        $res['imagesurl'] = SITE_URL . substr($res['savepath'],'1');
+        unset($res['savepath']);
         $type == 'json' ? $this->jsonReturn(1, '获取成功', $res) : false;
         is_file($id) ? $this->showImg($id) : $this->jsonReturn(-6, 'Request file does not exist');
     }
@@ -88,8 +95,8 @@ class Controller extends Base
      */
     public function ppx($url)
     {
-        $this->saveView(true);
         if (empty($url)) $this->jsonReturn(-1, 'Value cannot be empty');
+        $this->saveView(true);
         $res = $this->getPPX($url);
         $res['status_code'] != 11001 ? $this->jsonReturn(1, '获取成功', $res) : $this->jsonReturn(-1, $res['message'], '');
     }
@@ -99,13 +106,9 @@ class Controller extends Base
      */
     private function getImgRandomJson()
     {
-        $random_1 = 'SELECT * FROM `fave_img` AS t1 JOIN (SELECT ROUND(RAND() * ((SELECT MAX(id) FROM `fave_img`)-(SELECT MIN(id) FROM `fave_img`))+(SELECT MIN(id) FROM `fave_img`)) AS id) AS t2 WHERE t1.id >= t2.id ORDER BY t1.id LIMIT 1;';
-        $res = $this->medoo->query($random_1)->fetchAll();
-        $data['imagesurl'] = $this->splicing($res[0]['imagesurl'], 2);
-        $data['copyright'] = $res[0]['copyright'];
-        $data['savepath'] = substr($res[0]['savepath'], 1);
-        $data['saveid'] = $res[0]['saveid'];
-        return $data;
+        $res = $this->medoo->rand('fave_img',['copyright','savepath','date'],['LIMIT'=>1]);
+        if (count($res) === 1 ) $res = $res[0];
+        return $res;
     }
 
     /** save data info
@@ -114,53 +117,32 @@ class Controller extends Base
     public function saveDataInfo()
     {
         $img = $this->getImgInfo();
-        if ($img && !isset($iciba['collection'])) {
-            $res = $this->saveImg($img['imagesurl']);
-            if (is_array($res) && $res['status'] > 0) {
-                $isExit = $this->medoo->get('fave_img', 'id', ['saveid' => $res['file_id']]);
-                if ($isExit === false) {
-                    $img = array_merge($img, array('savepath' => $res['save_path'], 'saveid' => $res['file_id']));
+        if ($img && is_array($img)) {
+            $img['imagesurl'] = $this->splicing($img['imagesurl'],2);
+            $saveName = $img['bid'] . '_1920x1080.jpg';
+            $res = $this->curlDownFile( $img['imagesurl'], $this->_imgDir, $saveName);
+            $isExit = $this->medoo->get('fave_img', 'id', ['bid' => $img['bid']]);
+            $img = array_merge($img, array('savepath' => $this->_imgDir . $saveName));
+            if ($res === true){
+                if (!$isExit || $res === false){
                     $this->medoo->insert('fave_img', $img);
                     if ($this->medoo->id() > 0) $arr[] = array('status' => 1, 'msg' => 'Img', 'result' => $this->medoo->id());
-                } else {
-                    $arr[] = array('status' => -4, 'msg' => 'Img Data exists');
                 }
-            } else {
+            }elseif ($res == 200){
+                //文件存在
+                $this->medoo->update('fave_img',$img,['id' => $img['bid']]);// 更新数据
+                $res = array('status' => -3, 'msg' => 'File exists');
                 $arr[] = $res;
             }
         }
         $iciba = $this->getIcibaInfo();
-        if ($iciba && !isset($iciba['collection'])) {
+        if ($iciba && is_array($iciba)) {
             $this->medoo->insert('fave_sentence', $iciba);
             if ($this->medoo->id() > 0) $arr[] = array('status' => 1, 'msg' => 'Iciba', 'result' => $this->medoo->id());
         } else {
-            $arr[] = array('status' => -5, 'msg' => 'Iciba Data exists');
+            $arr[] = array('status' => -4, 'msg' => 'Data exists');
         }
         return $arr;
-    }
-
-    /** Save pictures
-     * @param $url
-     * @return array|bool
-     */
-    private function saveImg($url)
-    {
-        if (trim($url) == '') $this->jsonReturn(-1, 'The URL address is empty');
-        $url_exp = explode('.', $url);
-        $url = 'https://cn.bing.com' . $url . '_1920x1080.jpg';
-        $filename = $url_exp[1] . '_1920x1080.jpg';
-        $save_dir = $this->_imgDir;
-        if (!file_exists($save_dir) && !mkdir($save_dir, 0777, true)) return array('status' => -2, 'msg' => 'Failed to create image directory');
-        $save_dir .= $filename;
-        if (file_exists($save_dir)) return array('status' => -3, 'msg' => 'Image file exists');
-        ob_start();
-        readfile($url);
-        $img = ob_get_contents();
-        ob_end_clean();
-        $fp2 = @fopen($save_dir, 'a');
-        fwrite($fp2, $img);
-        fclose($fp2);
-        return array('file_id' => $url_exp[1], 'file_name' => $filename, 'save_path' => $save_dir);
     }
 
     /** data statistics
@@ -176,16 +158,36 @@ class Controller extends Base
         $isExit ? $this->medoo->update('fave_referer', ['count[+]' => 1, 'time' => time()], $data) : $this->medoo->insert('fave_referer', $data);
     }
 
-    /** Download File
-     * @param $url
-     * @param $path
+    /** download file
+     * @param $img_url
+     * @param string $save_path
+     * @param string $filename
+     * @return bool|int
      */
-    private function downFile($url, $path)
-    {
-        $arr = parse_url($url);
-        $fileName = basename($arr['path']);
-        $file = file_get_contents($url);
-        file_put_contents($path . $fileName, $file);
+    private function curlDownFile($img_url, $save_path = '', $filename = '') {
+        if (trim($img_url) == '') return false;
+        if (trim($save_path) == '') $save_path = './';
+        if (!file_exists($save_path) && !mkdir($save_path, 0777, true)) return false;
+        if (trim($filename) == '') {
+            $img_ext = strrchr($img_url, '.');
+            $img_exts = array('.gif', '.jpg', '.png', '.mp4','jpeg');
+            if (!in_array($img_ext, $img_exts)) return false;
+            $filename = time() . $img_ext;
+        }
+        $filename = $save_path . $filename;
+        if (is_file($filename) && filesize($filename) > 1024) return 200;
+        $ch = curl_init();
+        $timeout = 5;
+        curl_setopt($ch, CURLOPT_URL, $img_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
+        $img = curl_exec($ch);
+        curl_close($ch);
+        $status = false;
+        $wa = file_put_contents($filename, $img);
+        if ($img && $wa) $status = true;
+        unset($img, $img_url,$filename);
+        return $status;
     }
 
     /** pick up information
@@ -195,7 +197,7 @@ class Controller extends Base
     private function getImgInfo($lang = 'zh-CN')
     {
         if ($this->config['collection']['bing'] === false) return array('status' => -1, 'collection' => 'bing');
-        $url = 'https://cn.bing.com/HPImageArchive.aspx?format=js&idx=1&n=1&mkt=' . $lang;
+        $url = 'https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=' . $lang;
         if (function_exists('curl_init')) {
             $res = $this->curl($url);
         } else {
@@ -204,10 +206,11 @@ class Controller extends Base
             $res = file_get_contents($url, false, $context);
         }
         $res = json_decode($res, true);
-        $byimg_enddate = $res['images'][0]['enddate'];
+        $byimg_date = $res['images'][0]['enddate'];
         $byimg_urlbase = $res['images'][0]['urlbase'];
         $byimg_copyright = $res['images'][0]['copyright'];
-        return array('enddate' => $byimg_enddate, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright);
+        $bid = substr($byimg_urlbase,strpos($byimg_urlbase,'.') + 1);
+        return array('date' => $byimg_date, 'imagesurl' => $byimg_urlbase, 'copyright' => $byimg_copyright,'bid' => $bid);
     }
 
     /** pick up information
@@ -218,10 +221,10 @@ class Controller extends Base
         if ($this->config['collection']['iciba'] === false) return array('status' => -1, 'collection' => 'iciba');
         $nowtime = date('Y-m-d');
         $isExit = $this->medoo->get('fave_sentence', 'id', ['title' => $nowtime]);
-        if ($isExit === false) {
+        if ($isExit === false || !$isExit) {
             $url = 'http://sentence.iciba.com/index.php?c=dailysentence&m=getdetail&title=' . $nowtime . '&_=' . time();
-            $json_string = $this->httpGet($url);//curl 自定义函数访问api
-            $data = json_decode($json_string, true);//解析json 转为php
+            $json_string = $this->curl($url);
+            $data = json_decode($json_string, true);
             $arr['content'] = $data['content'];
             $arr['note'] = $data['note'];
             $arr['title'] = $data['title'];
@@ -238,7 +241,7 @@ class Controller extends Base
 
     private function getPPX($url)
     {
-        $json_string = $this->httpGet($url, true);//curl 自定义函数访问api
+        $json_string = $this->httpGet($url, true);
         $arr = false;
         if (is_array($json_string) && isset($json_string['location'])) {
             $url = parse_url($json_string['location']);
@@ -266,19 +269,6 @@ class Controller extends Base
         echo file_get_contents($img);
     }
 
-//    /** Network Request Source
-//     * @return mixed
-//     */
-//    private function referer()
-//    {
-//        if (isset($_SERVER['HTTP_ORIGIN']) && isset($_SERVER['HTTP_REFERER'])) {
-//            $url = parse_url($_SERVER['HTTP_REFERER']);
-//            return $url['host'];
-//        } else {
-//            return $_SERVER['HTTP_HOST'];
-//        }
-//    }
-
     /** Character mosaic
      * @param $str
      * @param int $action
@@ -291,7 +281,7 @@ class Controller extends Base
                 $str = './public/image/' . $str . '_1920x1080.jpg';
                 break;
             case 2:
-                $str = $str = 'https://cn.bing.com' . $str . '_1920x1080.jpg';
+                $str = $str = 'http://bing.com' . $str . '_1920x1080.jpg';
                 break;
             default :
                 $str = str_replace('_1920x1080.jpg', '', str_replace('/public/image/', '', $str));

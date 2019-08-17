@@ -14,17 +14,67 @@ class Base
 {
     public $medoo;
     public $config;
-    public function __construct()
+    public $class_name;
+    public $function;
+    public function __construct($class_name)
     {
-        require_once 'lib/Medoo.php';
-        $this->config = require_once ROOT.'config.php';
+        include_once ROOT.'/bin/lib/Medoo.php';
+        $this->config = include_once ROOT.'config.php';
         $this->medoo = new medoo($this->config['database']);
-        $this->check();
+//        $this->check($class_name);
     }
 
-    public function check()
+    public function check($class_name)
     {
+        $getArr = $this->get();
+        $function = $this->getClassMethod($class_name,'public');
+        $result = array('status' => 404);
 
+        if (!is_array($getArr) && count($getArr) <= 0 ){
+            echo 'What do you want to do?';
+            $excludeArr = array('index');
+            foreach ($function as $k => $v) {
+                $v = implode(',', $v);
+                if (!in_array($k, $excludeArr)) echo PHP_EOL . "$k($v);";
+            }
+            die;
+        }
+
+        foreach ($getArr AS $k => $v) {
+            if (isset($function[$k]) && method_exists($class_name, $k)) {
+                $args = [];
+                if (count($v) > 0) {
+                    foreach ($function[$k] as $kk => $vv) {
+                        $args[$kk] = '';
+                        if (isset($v[$vv])) $args[$kk] = $v[$vv];
+                    }
+                }
+                $result = $this->handle($class_name, $k, $args);
+            }
+        }
+        var_dump($result);
+//        if (!empty($result) || is_array($result)) $this->jsonReturn($result);
+
+//        foreach ($this->config['noPublic'] as $bboom => $oobbm){
+//            if (array_key_exists($bboom, $function)){
+//                if (empty($oobbm))unset($function[$oobbm]);
+//                var_dump($bboom);
+//            }
+//        }
+//        $this->function = $function;
+    }
+
+    private function handle($class_name, $k, $args){
+        try {
+            $result = call_user_func_array(array($class_name, $k), $args);
+        } catch (\Exception $exception) {
+            echo "{$exception->getLine()}--{$exception->getMessage()}--{$exception->getFile()}" ;
+            die;
+        } catch (\Error $error) {
+            echo "{$error->getLine()}--{$error->getMessage()}--{$error->getFile()}" ;
+            die;
+        }
+        return $result;
     }
 
     /**接收方法
@@ -203,7 +253,7 @@ class Base
     /** Network Request Source
      * @return mixed
      */
-    protected function referer()
+    public function referer()
     {
         if (isset($_SERVER['HTTP_ORIGIN']) && isset($_SERVER['HTTP_REFERER'])) {
             $url = parse_url($_SERVER['HTTP_REFERER']);
@@ -211,6 +261,16 @@ class Base
         } else {
             return $_SERVER['HTTP_HOST'];
         }
+    }
+
+    public function writeLog($content = '', $dirname = 'Default', $filename = 'Log')
+    {
+        $filename = $filename . '_' . date('Y.m.d') . ".log";
+        $dirname = ROOT . 'Runtime/Logs/' . $dirname . '/';
+        if (!file_exists($dirname) && !mkdir($dirname, 0777, true)) return false;
+        $filename = $dirname . $filename;
+        $content = is_array($content) ? json_encode($content, JSON_UNESCAPED_UNICODE) : $content;
+        $res = file_put_contents($filename, date('Y-m-d H:i:s') . ' ' . $content . PHP_EOL, FILE_APPEND);
     }
 
 }

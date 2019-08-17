@@ -21,5 +21,8 @@ return array(
         'charset' => 'utf8'
     ),
 //    An undisclosed approach
-    'noPublic'=>array('saveDataInfo'),
+    'noPublic'=>array(
+        'index',
+        'saveDataInfo'=>'Yb3lhWE8dl85LmwO'
+    ),
 );
