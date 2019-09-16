@@ -1,0 +1,185 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Fave Nermif</title>
+    <meta name="description" content="Nermif_换个方式也许更美"/>
+    <meta name="keywords" content="换个方式也许更美,nermif,faveapi"/>
+    <link rel="shortcut icon" href="favicon.ico">
+    <style type="text/css">
+        * {
+            margin: 0;
+            padding: 0;
+            border: 0;
+        }
+
+        p, a {
+            color: #FFFFFF;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        #bg {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-size: cover;
+            background-position: center;
+            background-color: #b8b8b8
+        }
+
+        #main {
+            width: 474px;
+            height: 80px;
+            overflow: hidden;
+            position: absolute;
+            top: 50%;
+            left: 45%;
+            margin-left: -180px;
+            margin-top: -120px;
+        }
+
+        @media (max-width: 768px) {
+            .search {
+                max-width: 300px;
+                margin: 20px auto;
+            }
+
+            .search p {
+                height: 28px;
+                float: left;
+                border: 2px solid #04B872;
+                border-right: 0;
+                padding: 4px;
+                border-radius: 3px 0 0 3px;
+            }
+
+            .search p input {
+                background-color: #ffffff;
+            }
+
+            .relate li span {
+                display: none;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .search {
+                max-width: 480px;
+                margin: 20px auto;
+            }
+
+            .search p {
+                width: 390px;
+                height: 28px;
+                float: left;
+                border: 2px solid #04B872;
+                border-right: 0;
+                padding: 4px;
+                border-radius: 3px 0 0 3px;
+            }
+
+            .search p input {
+                background-color: #ffffff;
+                border-radius: 3px;
+            }
+
+        }
+
+        .search-input {
+            width: 100%;
+        }
+
+        .search input {
+            background: 0 0;
+            height: 30px;
+            color: #000;
+            font-size: 14px;
+            text-indent: 6px;
+            outline: 0;
+            padding: 0 0.5em;
+        }
+
+        .search .sub {
+            height: 40px;
+            background: #04B872 center;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #fff;
+            border: none;
+            font-weight: 700;
+            border-radius: 0 3px 3px 0
+        }
+
+        #footer {
+            height: 20px;
+            padding: 3px 0;
+            clear: both;
+            display: block;
+            text-align: center;
+            margin: 0px auto;
+            position: absolute;
+            bottom: 0px;
+            width: 100%;
+        }
+
+        #footer p {
+            text-transform: capitalize;
+            font-family: sans-serif;
+            font-size: 13px;
+            margin: 0 0 10px 10px;
+        }
+
+        #imgcpr {
+            padding-left: 1em;
+        }
+    </style>
+</head>
+<body>
+<div id="bg" >
+    <img>
+    <div id="main">
+        <div class="search">
+            <form action="https://www.baidu.com/s?wd=" target="_blank">
+                <p>
+                    <input type="text" name="wd" id="s" class="search-input" placeholder="输入您要搜索的关键词"></p>
+                <input type="button" class="sub" value="搜索">
+            </form>
+        </div>
+    </div>
+    <div id="footer"><p id="copyright">FAVE&nbsp;©2018&nbsp;<a href="https://www.fave.top">nermif</a><span
+            id="imgcpr"></span></p></div>
+</div>
+</body>
+<script src="public/static/jquery.min.js"></script>
+<script>
+    $(function () {
+        $.get('api.php/?ac=getImg&type=json', function (v) {
+            var data = v.result, imgurl = '';
+            if (data === undefined) {
+                imgurl = 'url(public/static/default.jpg)';
+            } else {
+                if (!data.savepath) {
+                    imgurl = 'url(' + data.imagesurl + ')';
+                } else {
+                    imgurl = 'url(' + data.savepath + ')';
+                }
+                $("#imgcpr").html(data.copyright);
+            }
+            $("#bg").css('background-image', imgurl)
+        }).error(function (xhr, errorText, errorType) {
+            console.log(xhr);
+            console.log(errorText);
+            console.log(errorType);
+            imgurl = 'url(public/static/default.jpg)';
+            $("#bg").css('background-image', imgurl)
+        });
+        
+    });
+</script>
+</html>
