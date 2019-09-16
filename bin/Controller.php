@@ -74,6 +74,7 @@ class Controller extends Base
      */
     public function getImg($id = '', $type = '')
     {
+        if (!$type) $type = 'show';
         $ref = $this->referer();
         if (empty($id)) {
             $res = $this->getImgRandomJson();
