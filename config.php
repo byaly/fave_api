@@ -14,7 +14,7 @@ return array(
 //    Database Settings
     'database' => array(
         'database_type' => 'mysql',
-        'database_name' => 'fave',
+        'database_name' => 'api.fave.io',
         'server' => 'localhost',
         'username' => 'root',
         'password' => 'root',
